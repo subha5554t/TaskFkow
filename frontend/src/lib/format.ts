@@ -1,7 +1,6 @@
 import type { ActivityAction, TaskPriority, TaskStatus } from './types';
 import { format, formatDistanceToNow, isPast, isWithinInterval, endOfWeek, startOfDay } from 'date-fns';
 
-// ── Date helpers ───────────────────────────────────────────
 
 export function formatDate(dateStr?: string): string {
   if (!dateStr) return '';
@@ -52,7 +51,6 @@ export function isDueThisWeek(dateStr?: string): boolean {
   }
 }
 
-// ── Label helpers ──────────────────────────────────────────
 
 export function statusLabel(status: TaskStatus): string {
   const map: Record<TaskStatus, string> = {
@@ -74,7 +72,6 @@ export function priorityLabel(priority: TaskPriority): string {
   return map[priority] ?? priority;
 }
 
-// ── Activity text ──────────────────────────────────────────
 
 export function activityText(
   action: ActivityAction,
@@ -96,7 +93,6 @@ export function activityText(
   }
 }
 
-// ── String helpers ─────────────────────────────────────────
 
 export function initials(name: string): string {
   return name

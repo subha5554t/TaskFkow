@@ -70,7 +70,6 @@ export interface Activity {
   createdAt: string;
 }
 
-// ── Constants ──────────────────────────────────────────────
 
 export const TASK_STATUSES: TaskStatus[] = [
   'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE',
