@@ -1,0 +1,176 @@
+/* =========================================================
+   TaskFlow Design System — CSS Custom Properties
+   Linear/Vercel-inspired: near-black text on off-white,
+   single indigo/violet accent, semantic priority colours.
+   ========================================================= */
+
+/* Google Fonts — Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Reset ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens — Light mode ─────────────────────────── */
+:root {
+  --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-lg: 0.875rem;
+
+  /* Surfaces */
+  --background: #f8f8fb;
+  --foreground: #1c1c2e;
+  --card: #ffffff;
+  --card-foreground: #1c1c2e;
+  --popover: #ffffff;
+
+  /* Brand */
+  --primary: #6d28d9;
+  --primary-hover: #5b21b6;
+  --primary-foreground: #ffffff;
+
+  /* Neutral */
+  --secondary: #f1f0f6;
+  --secondary-foreground: #374151;
+  --muted: #f1f0f6;
+  --muted-foreground: #6b7280;
+  --accent: #ede9fe;
+  --accent-foreground: #4c1d95;
+
+  /* Semantic */
+  --destructive: #dc2626;
+  --destructive-hover: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+
+  /* Borders & inputs */
+  --border: #e5e4ef;
+  --input: #e5e4ef;
+  --ring: #6d28d9;
+
+  /* Priority colours */
+  --priority-low: #6b7280;
+  --priority-medium: #3b82f6;
+  --priority-high: #f59e0b;
+  --priority-urgent: #ef4444;
+
+  /* Chart colours */
+  --chart-1: #6b7280;
+  --chart-2: #3b82f6;
+  --chart-3: #f59e0b;
+  --chart-4: #6d28d9;
+
+  /* Status colours */
+  --status-todo: #6b7280;
+  --status-in-progress: #3b82f6;
+  --status-in-review: #f59e0b;
+  --status-done: #16a34a;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* ── Design tokens — Dark mode ──────────────────────────── */
+.dark {
+  --background: #12121e;
+  --foreground: #f0f0f8;
+  --card: #1c1c2e;
+  --card-foreground: #f0f0f8;
+  --popover: #1c1c2e;
+
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --primary-foreground: #1c1c2e;
+
+  --secondary: #252535;
+  --secondary-foreground: #d1d5db;
+  --muted: #252535;
+  --muted-foreground: #9ca3af;
+  --accent: #2e1f5e;
+  --accent-foreground: #c4b5fd;
+
+  --destructive: #ef4444;
+  --destructive-hover: #dc2626;
+  --destructive-foreground: #fff;
+
+  --border: rgba(255 255 255 / 0.08);
+  --input: rgba(255 255 255 / 0.1);
+  --ring: #8b5cf6;
+
+  --priority-low: #9ca3af;
+  --priority-medium: #60a5fa;
+  --priority-high: #fbbf24;
+  --priority-urgent: #f87171;
+
+  --chart-1: #9ca3af;
+  --chart-2: #60a5fa;
+  --chart-3: #fbbf24;
+  --chart-4: #8b5cf6;
+
+  --status-todo: #9ca3af;
+  --status-in-progress: #60a5fa;
+  --status-in-review: #fbbf24;
+  --status-done: #4ade80;
+}
+
+/* ── Base styles ────────────────────────────────────────── */
+html {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ── Utility classes ─────────────────────────────────────── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
+}
+
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Animation ──────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+@keyframes slideInUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Layout ─────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .sidebar-nav { display: flex !important; }
+}
