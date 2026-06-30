@@ -1,0 +1,167 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Native Postgres enums — invalid values are structurally impossible at the DB level.
+// This is the third layer of defense: frontend Zod → backend Zod → DB enum type.
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique // uniqueness enforced at DB level, not just in Zod
+  passwordHash String // NEVER returned in any API response — always excluded from selects
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedProjects Project[]       @relation("ProjectOwner")
+  memberships   ProjectMember[]
+  assignedTasks Task[]          @relation("TaskAssignee")
+  createdTasks  Task[]          @relation("TaskCreator")
+  comments      Comment[]
+  activities    Activity[]
+
+  @@map("users")
+}
+
+model Project {
+  id          Int           @id @default(autoincrement())
+  name        String        @db.VarChar(100) // DB-level constraint mirrors Zod .max(100)
+  description String?       @db.VarChar(500)
+  status      ProjectStatus @default(ACTIVE)
+  dueDate     DateTime?
+  ownerId     Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner   User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members ProjectMember[]
+  tasks   Task[]
+
+  // Serves: GET /api/projects — filtering projects this user owns
+  @@index([ownerId])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        Int         @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
+  // Cascade: a member row with no project is meaningless — remove it automatically
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  // A user cannot join the same project twice — enforced at DB level, not just app code
+  @@unique([projectId, userId])
+  // Serves: "which projects is this user a member of?" — hit on every auth check
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  title       String       @db.VarChar(150)
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  labels      String[] // Postgres native array — no join table needed for simple string tags
+
+  // Intentional denormalization: avoids a COUNT() on every task list render.
+  // Updated inside a Prisma $transaction whenever a comment is added.
+  commentCount Int @default(0)
+
+  projectId   Int
+  assigneeId  Int?
+  createdById Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Cascade: a task with no project is meaningless
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // No cascade on assignee: reassigning or deleting a user should NOT delete the task
+  assignee User? @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  // SetNull: deleting a user preserves task history — just clears the creator reference
+  createdBy User? @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  comments   Comment[]
+  activities Activity[]
+
+  // Kanban board's exact hot-path query: WHERE project_id = X, all statuses
+  @@index([projectId, status])
+  // Serves: "my assigned tasks" filter
+  @@index([assigneeId])
+  // Serves: dashboard "due this week" + "overdue" queries
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  text      String   @db.Text
+  taskId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  // Cascade: comments belong to a task — if task is deleted, comments go with it
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  // Serves: GET /api/tasks/:id/comments
+  @@index([taskId])
+  @@map("comments")
+}
+
+model Activity {
+  id     Int    @id @default(autoincrement())
+  // "task_created" | "status_changed" | "priority_changed" | "assignee_changed" | "comment_added"
+  action String
+  // Flexible audit data stored as jsonb — queryable and indexable in Postgres
+  // Example: { "from": "TODO", "to": "IN_PROGRESS" }
+  meta   Json?
+
+  taskId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  // Serves: GET /api/tasks/:id/activity
+  @@index([taskId])
+  @@map("activities")
+}
