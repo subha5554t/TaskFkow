@@ -135,7 +135,7 @@ export function DashboardPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
                   {data.upcomingDeadlines.length === 0 ? (
                     <p style={{ padding: '1.5rem 0', textAlign: 'center', fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
-                      No upcoming deadlines 🎉
+                      No upcoming deadlines
                     </p>
                   ) : data.upcomingDeadlines.map(task => (
                     <Link

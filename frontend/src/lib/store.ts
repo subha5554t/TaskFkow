@@ -2,8 +2,6 @@ import type {
   Activity, Comment, Project, Task,
 } from '@/lib/types';
 
-// ── Types ──────────────────────────────────────────────────
-
 export interface Database {
   users:      Record<string, import('@/lib/types').User>;
   projects:   Record<string, Project>;
@@ -12,13 +10,9 @@ export interface Database {
   activities: Record<string, Activity>;
 }
 
-// ── Keys ───────────────────────────────────────────────────
-
 const DB_KEY      = 'taskflow:db';
 const TOKEN_KEY   = 'taskflow:token';
 const SESSION_KEY = 'taskflow:userId';
-
-// ── Helpers ────────────────────────────────────────────────
 
 export function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -31,8 +25,6 @@ export function delay<T>(value: T, ms = 220): Promise<T> {
 export function now(): string {
   return new Date().toISOString();
 }
-
-// ── Seed data ──────────────────────────────────────────────
 
 function createSeedData(): Database {
   const userId   = 'user_demo';
@@ -148,8 +140,6 @@ function createSeedData(): Database {
     },
   };
 }
-
-// ── Store ──────────────────────────────────────────────────
 
 function read(): Database {
   const raw = window.localStorage.getItem(DB_KEY);

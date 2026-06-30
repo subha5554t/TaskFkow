@@ -1,201 +1,150 @@
-// Tasks API — mock localStorage-backed implementation
 
-import { getDb, commit, sessionStore, uid, delay, now } from '@/lib/store';
-import { ApiError } from '@/lib/apiError';
+import api from './client';
 import type { Activity, Comment, Task, TaskStatus } from '@/lib/types';
 import type { CommentInput, TaskInput } from '@/lib/validators';
 
-function requireUser(): string {
-  const id = sessionStore.getUserId();
-  if (!id) throw new ApiError(401, 'Not authenticated');
-  return id;
+interface TaskResponse    { success: boolean; data: any }
+interface TaskListResponse {
+  success:    boolean;
+  data:       any[];
+  pagination: { total: number; page: number; limit: number; totalPages: number };
+}
+
+// Map database models to UI types.
+function normaliseTask(raw: any): Task {
+  return {
+    id:           String(raw.id),
+    title:        raw.title,
+    description:  raw.description  ?? undefined,
+    status:       raw.status,
+    priority:     raw.priority,
+    dueDate:      raw.dueDate      ?? undefined,
+    labels:       raw.labels       ?? [],
+    commentCount: raw.commentCount ?? 0,
+    projectId:    String(raw.projectId),
+    assigneeId:   raw.assigneeId   ? String(raw.assigneeId)   : undefined,
+    createdById:  raw.createdById  ? String(raw.createdById)  : String(raw.createdBy?.id ?? ''),
+    createdAt:    raw.createdAt,
+    updatedAt:    raw.updatedAt,
+  };
+}
+
+function normaliseComment(raw: any): Comment {
+  return {
+    id:        String(raw.id),
+    text:      raw.text,
+    taskId:    String(raw.taskId),
+    userId:    String(raw.userId ?? raw.user?.id),
+    createdAt: raw.createdAt,
+  };
+}
+
+function normaliseActivity(raw: any): Activity {
+  return {
+    id:        String(raw.id),
+    action:    raw.action,
+    meta:      raw.meta ?? undefined,
+    taskId:    String(raw.taskId),
+    userId:    String(raw.userId ?? raw.user?.id),
+    createdAt: raw.createdAt,
+  };
 }
 
 export async function listTasks(
   projectId: string,
   filters?: {
-    status?: TaskStatus;
-    priority?: string;
-    search?: string;
+    status?:     TaskStatus;
+    priority?:   string;
+    search?:     string;
     assigneeId?: string;
-    sortBy?: 'dueDate' | 'priority' | 'createdAt';
+    sortBy?:     'dueDate' | 'priority' | 'createdAt';
   },
 ): Promise<Task[]> {
-  requireUser();
-  const db = getDb();
-  await delay(null);
+  const params: Record<string, string> = {};
+  if (filters?.status)     params.status     = filters.status;
+  if (filters?.priority)   params.priority   = filters.priority;
+  if (filters?.search)     params.search     = filters.search;
+  if (filters?.assigneeId) params.assigneeId = filters.assigneeId;
+  if (filters?.sortBy)     params.sortBy     = filters.sortBy;
 
-  let tasks = Object.values(db.tasks).filter(t => t.projectId === projectId);
-
-  if (filters?.status)     tasks = tasks.filter(t => t.status === filters.status);
-  if (filters?.priority)   tasks = tasks.filter(t => t.priority === filters.priority);
-  if (filters?.assigneeId) tasks = tasks.filter(t => t.assigneeId === filters.assigneeId);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    tasks = tasks.filter(
-      t => t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q),
-    );
-  }
-
-  if (filters?.sortBy === 'dueDate') {
-    tasks.sort((a, b) => {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return a.dueDate < b.dueDate ? -1 : 1;
-    });
-  } else if (filters?.sortBy === 'priority') {
-    const ORDER = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-    tasks.sort((a, b) => (ORDER[a.priority] ?? 9) - (ORDER[b.priority] ?? 9));
-  } else {
-    tasks.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
-  }
-
-  return tasks;
+  const res = await api.get<TaskListResponse>(
+    `/tasks/projects/${projectId}/tasks`,
+    { params },
+  );
+  return res.data.data.map(normaliseTask);
 }
 
 export async function getTask(id: string): Promise<Task> {
-  requireUser();
-  const db   = getDb();
-  const task = db.tasks[id];
-  if (!task) throw new ApiError(404, 'Task not found');
-  return task;
+  const res = await api.get<TaskResponse>(`/tasks/${id}`);
+  return normaliseTask(res.data.data);
 }
 
-export async function createTask(input: TaskInput & { projectId: string }): Promise<Task> {
-  const userId = requireUser();
-  await delay(null, 300);
-  const id = uid('task');
-  const task: Task = {
-    id,
+export async function createTask(
+  input: TaskInput & { projectId: string },
+): Promise<Task> {
+  const res = await api.post<TaskResponse>('/tasks', {
     title:       input.title,
-    description: input.description ?? undefined,
+    projectId:   Number(input.projectId),
+    description: input.description || undefined,
     status:      input.status,
     priority:    input.priority,
-    dueDate:     input.dueDate ?? undefined,
-    assigneeId:  input.assigneeId ?? undefined,
-    labels:      [],
-    commentCount: 0,
-    projectId:   input.projectId,
-    createdById: userId,
-    createdAt:   now(),
-    updatedAt:   now(),
-  };
-
-  commit(db => {
-    db.tasks[id] = task;
-    // log activity
-    const actId = uid('act');
-    db.activities[actId] = {
-      id: actId, action: 'task_created', meta: { title: task.title },
-      taskId: id, userId, createdAt: now(),
-    };
+    dueDate:     input.dueDate ? new Date(input.dueDate).toISOString() : undefined,
+    assigneeId:  input.assigneeId  ? Number(input.assigneeId) : undefined,
   });
-  return task;
+  return normaliseTask(res.data.data);
 }
 
 export async function updateTask(
   id: string,
   input: Partial<TaskInput>,
 ): Promise<Task> {
-  const userId = requireUser();
-  const db     = getDb();
-  await delay(null, 200);
-  const task = db.tasks[id];
-  if (!task) throw new ApiError(404, 'Task not found');
-
-  // Build activity logs for changed fields
-  const activities: Activity[] = [];
-
-  if (input.status && input.status !== task.status) {
-    activities.push({
-      id: uid('act'), action: 'status_changed',
-      meta: { from: task.status, to: input.status },
-      taskId: id, userId, createdAt: now(),
-    });
-  }
-  if (input.priority && input.priority !== task.priority) {
-    activities.push({
-      id: uid('act'), action: 'priority_changed',
-      meta: { from: task.priority, to: input.priority },
-      taskId: id, userId, createdAt: now(),
-    });
-  }
-  if ('assigneeId' in input && input.assigneeId !== task.assigneeId) {
-    const db2 = getDb();
-    const assigneeName = input.assigneeId ? db2.users[input.assigneeId]?.name : null;
-    activities.push({
-      id: uid('act'), action: 'assignee_changed',
-      meta: { to: assigneeName },
-      taskId: id, userId, createdAt: now(),
-    });
+  const payload: Record<string, unknown> = {};
+  if (input.title       !== undefined) payload.title       = input.title;
+  if (input.description !== undefined) payload.description = input.description;
+  if (input.status      !== undefined) payload.status      = input.status;
+  if (input.priority    !== undefined) payload.priority    = input.priority;
+  
+  if (input.dueDate === '') {
+    payload.dueDate = null;
+  } else if (input.dueDate) {
+    payload.dueDate = new Date(input.dueDate).toISOString();
   }
 
-  const updated: Task = { ...task, ...input, updatedAt: now() };
-  commit(db => {
-    db.tasks[id] = updated;
-    activities.forEach(a => { db.activities[a.id] = a; });
-  });
-  return updated;
+  if ('assigneeId' in input)           payload.assigneeId  = input.assigneeId
+                                                              ? Number(input.assigneeId)
+                                                              : null;
+
+  const res = await api.patch<TaskResponse>(`/tasks/${id}`, payload);
+  return normaliseTask(res.data.data);
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  requireUser();
-  const db = getDb();
-  if (!db.tasks[id]) throw new ApiError(404, 'Task not found');
-  commit(db => {
-    delete db.tasks[id];
-    // cascade delete comments and activities
-    Object.keys(db.comments).forEach(k => { if (db.comments[k].taskId === id) delete db.comments[k]; });
-    Object.keys(db.activities).forEach(k => { if (db.activities[k].taskId === id) delete db.activities[k]; });
-  });
+  await api.delete(`/tasks/${id}`);
 }
 
 export async function bulkUpdateStatus(ids: string[], status: TaskStatus): Promise<void> {
-  requireUser();
-  await delay(null, 200);
-  commit(db => {
-    ids.forEach(id => {
-      if (db.tasks[id]) db.tasks[id] = { ...db.tasks[id], status, updatedAt: now() };
-    });
+  await api.patch('/tasks/bulk', {
+    ids:    ids.map(Number),
+    status,
   });
 }
 
-// ── Comments ───────────────────────────────────────────────
 
 export async function listComments(taskId: string): Promise<Comment[]> {
-  requireUser();
-  const db = getDb();
-  return Object.values(db.comments)
-    .filter(c => c.taskId === taskId)
-    .sort((a, b) => a.createdAt < b.createdAt ? -1 : 1);
+  const res = await api.get<{ success: boolean; data: any[] }>(`/tasks/${taskId}/comments`);
+  return res.data.data.map(normaliseComment);
 }
 
 export async function addComment(taskId: string, input: CommentInput): Promise<Comment> {
-  const userId = requireUser();
-  await delay(null, 200);
-  const id = uid('cmt');
-  const comment: Comment = { id, text: input.text, taskId, userId, createdAt: now() };
-
-  commit(db => {
-    db.comments[id] = comment;
-    if (db.tasks[taskId]) {
-      db.tasks[taskId] = { ...db.tasks[taskId], commentCount: db.tasks[taskId].commentCount + 1, updatedAt: now() };
-    }
-    const actId = uid('act');
-    db.activities[actId] = {
-      id: actId, action: 'comment_added', meta: {},
-      taskId, userId, createdAt: now(),
-    };
-  });
-  return comment;
+  const res = await api.post<{ success: boolean; data: any }>(
+    `/tasks/${taskId}/comments`,
+    { text: input.text },
+  );
+  return normaliseComment(res.data.data);
 }
 
-// ── Activity ───────────────────────────────────────────────
 
 export async function listActivity(taskId: string): Promise<Activity[]> {
-  requireUser();
-  const db = getDb();
-  return Object.values(db.activities)
-    .filter(a => a.taskId === taskId)
-    .sort((a, b) => a.createdAt < b.createdAt ? -1 : 1);
+  const res = await api.get<{ success: boolean; data: any[] }>(`/tasks/${taskId}/activity`);
+  return res.data.data.map(normaliseActivity);
 }

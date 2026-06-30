@@ -7,6 +7,9 @@ import { authApi } from '@/api';
 import type { PublicUser } from '@/lib/types';
 import type { LoginInput, RegisterInput } from '@/lib/validators';
 
+const TOKEN_KEY = 'taskflow:token';
+const USER_KEY  = 'taskflow:user';
+
 interface AuthContextValue {
   user:            PublicUser | null;
   isLoading:       boolean;
@@ -20,36 +23,54 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user,      setUser]      = useState<PublicUser | null>(null);
+  const [user,      setUserState] = useState<PublicUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore persisted session on first mount
+  // On first mount: if a token exists, fetch the current user from the real backend.
+  // This keeps the session alive across page reloads.
   useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
     authApi.getCurrentUser()
-      .then(setUser)
-      .catch(() => null)
+      .then((u) => setUserState(u))
+      .catch(() => {
+        // Token is expired or invalid — clear it
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (input: LoginInput) => {
-    const { user: next } = await authApi.login(input);
-    setUser(next);
+  const setUser = useCallback((u: PublicUser) => {
+    setUserState(u);
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
   }, []);
+
+  const login = useCallback(async (input: LoginInput) => {
+    const { user: next, token } = await authApi.login(input);
+    // Persist the JWT so the axios client attaches it to every subsequent request
+    localStorage.setItem(TOKEN_KEY, token);
+    setUser(next);
+  }, [setUser]);
 
   const register = useCallback(async (input: RegisterInput) => {
-    const { user: next } = await authApi.register(input);
+    const { user: next, token } = await authApi.register(input);
+    localStorage.setItem(TOKEN_KEY, token);
     setUser(next);
-  }, []);
+  }, [setUser]);
 
   const logout = useCallback(() => {
-    authApi.logout();
-    setUser(null);
+    authApi.logout();   // clears localStorage
+    setUserState(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
     user, isLoading, isAuthenticated: Boolean(user),
     login, register, logout, setUser,
-  }), [user, isLoading, login, register, logout]);
+  }), [user, isLoading, login, register, logout, setUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
