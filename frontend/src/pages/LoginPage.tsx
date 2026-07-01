@@ -17,7 +17,7 @@ export function LoginPage() {
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } =
     useForm<LoginInput>({
       resolver: zodResolver(loginSchema),
-      defaultValues: { email: 'alex@taskflow.dev', password: 'password123' },
+      defaultValues: { email: '', password: '' },
     });
 
   useEffect(() => {
@@ -73,9 +73,6 @@ export function LoginPage() {
           Sign in
         </Button>
 
-        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-          Demo account is pre-filled — just press sign in.
-        </p>
       </form>
     </AuthShell>
   );
